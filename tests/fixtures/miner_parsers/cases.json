@@ -1,0 +1,21 @@
+{
+  "qimao": {"body": "<a class=\"s-book-title\" href=\"/book/1\">星河旅人</a><a class=\"s-book-title\">星河旅人</a>", "expected": ["星河旅人"]},
+  "zongheng": {"body": "<a href=\"https://book.zongheng.com/detail/123\">长夜渡</a><a href=\"/other\">忽略</a>", "expected": ["长夜渡"]},
+  "faloo": {"body": "<a href=\"https://b.faloo.com/123456.html\">九州新篇</a>", "expected": ["九州新篇"]},
+  "17k": {"body": "<a href=\"https://www.17k.com/book/123.html\">春山有信</a>", "expected": ["春山有信"]},
+  "douban": {"body": "{\"subjects\":[{\"title\":\"海边来信\"},{\"title\":\"海边来信\"},{\"title\":\"\"}]}", "expected": ["海边来信"]},
+  "maoyan": {"body": "<div id=\"ranks-list\"><p class=\"first-line\">月光航线</p></div>", "expected": ["月光航线"]},
+  "hongguo": {"body": "<img title=\"春风正好\"/><img alt=\"封面\"/><img title=\"红果短剧app\"/>", "expected": ["春风正好"]},
+  "taptap": {"body": "<script type=\"application/ld+json\">{\"@type\":\"ItemList\",\"itemListElement\":[{\"position\":2,\"name\":\"山海行\"},{\"position\":1,\"name\":\"雾境奇旅\"}]}</script>", "expected": ["雾境奇旅", "山海行"]},
+  "steam_rows": {"body": "<td><a href=\"https://store.steampowered.com/app/12345/example\"><div>暮色车站</div></a></td>", "expected": ["暮色车站"]},
+  "steam": {"body": "<td><a href=\"https://store.steampowered.com/app/12345/example\"><div>暮色车站</div></a></td>", "expected": ["暮色车站"]},
+  "appbao": {"body": "<div title=\"山海行\" class=\"GameCard_name_abc\"></div><div class=\"GameCard_name\">雾境奇旅</div>", "expected": ["山海行"]},
+  "3dm": {"body": "<a href=\"https://www.3dmgame.com/games/fogjourney/\">雾境奇旅</a>", "expected": ["雾境奇旅"]},
+  "ali_rank": {"body": "<a href=\"https://www.ali213.net/zt/fogjourney/\">雾境奇旅</a>", "expected": ["雾境奇旅"]},
+  "gamersky_hot": {"body": "热门单机<a href=\"https://down.gamersky.com/pc/1\">雾境奇旅</a>", "expected": ["雾境奇旅"]},
+  "gamersky_top": {"body": "<a href=\"https://www.gamersky.com/z/fogjourney/\">雾境奇旅</a>", "expected": ["雾境奇旅"]},
+  "onlinedown": {"body": "<a href=\"https://www.onlinedown.net/soft/123.htm\">云端绘图</a>", "expected": ["云端绘图"]},
+  "baoku": {"body": "<a href=\"https://baoku.360.cn/soft/123.html\">云端绘图 9.5分</a>", "expected": ["云端绘图"]},
+  "crsky": {"body": "<a href=\"https://www.crsky.com/soft/123.html\">云端绘图</a>", "expected": ["云端绘图"]},
+  "423down": {"body": "<h2>云端绘图 | 下载页</h2><h2>下载排行</h2>", "expected": ["云端绘图"]}
+}

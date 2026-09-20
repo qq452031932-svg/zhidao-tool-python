@@ -1,0 +1,25 @@
+# ---- 大体积 / 非本仓库资产（务必排除，否则会把 72GB 的 C# 副本卷进来）----
+dakazhandian/
+csharp_isolated/
+安装包_*/
+*.zip
+
+# ---- 构建产物 ----
+dist/
+build/
+*.egg-info/
+
+# ---- Python 缓存 ----
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# ---- 运行时输出 / 凭据（绝不入库）----
+output/
+*.log
+config.json
+*.xlsx
+!tests/**/*.xlsx
+~$*

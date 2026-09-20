@@ -1,0 +1,5 @@
+# 全仓库统一 LF，避免行尾漂移导致 diff 全盘失效（C# 侧已踩过这个坑）
+* text=auto eol=lf
+*.xlsx binary
+*.zip binary
+*.png binary
