@@ -31,7 +31,7 @@ lxds run --config pipeline.yaml
 ```yaml
 category: 小说
 count: 200
-workdir: D:/hong/output
+workdir: D:/hong-2/output
 transfer:
   mode: local
   target: /我的资源
