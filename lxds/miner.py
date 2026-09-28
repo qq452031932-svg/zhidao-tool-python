@@ -45,18 +45,18 @@ SOURCES = {
 }
 
 _SEARCH_TEMPLATES = {
-    "小说": ("2026年热门小说排行榜", "2026年{month}月小说人气榜", "2025年热门小说排行榜"),
-    "电影": ("2026年热门电影排行榜", "2026年{month}月电影票房榜", "2025年热门电影排行榜"),
-    "电视剧": ("2026年热门电视剧排行榜", "2026年{month}月电视剧热播榜", "2026年国产剧排行榜"),
-    "动漫": ("2026年热门动漫排行榜", "2026年{month}月新番推荐", "2026年日本动画热门榜"),
-    "短剧": ("2026年热门短剧排行榜", "2026年{month}月短剧热播榜", "2026年{month}月红果短剧热播榜",
-           "2026年红果短剧热播榜", "2026最火短剧TOP10", "2026年爆款短剧名单", "2026年短剧百强榜",
-           "2026年真人短剧热播榜", "2026年短剧播放量排行榜", "2025年热门短剧排行榜"),
-    "游戏": ("2026年热门手游排行榜", "2026年{month}月手游下载榜", "2026年热门单机游戏", "2025年热门单机游戏",
-           "2026年PC游戏热门榜", "2026年Steam热销游戏", "2026年TapTap热门游戏"),
-    "软件": ("2026年热门电脑软件", "2026年常用电脑工具软件"),
+    "小说": (f"{SEARCH_YEAR}年热门小说排行榜", f"{SEARCH_YEAR}年{{month}}月小说人气榜", f"{PREVIOUS_SEARCH_YEAR}年热门小说排行榜"),
+    "电影": (f"{SEARCH_YEAR}年热门电影排行榜", f"{SEARCH_YEAR}年{{month}}月电影票房榜", f"{PREVIOUS_SEARCH_YEAR}年热门电影排行榜"),
+    "电视剧": (f"{SEARCH_YEAR}年热门电视剧排行榜", f"{SEARCH_YEAR}年{{month}}月电视剧热播榜", f"{SEARCH_YEAR}年国产剧排行榜"),
+    "动漫": (f"{SEARCH_YEAR}年热门动漫排行榜", f"{SEARCH_YEAR}年{{month}}月新番推荐", f"{SEARCH_YEAR}年日本动画热门榜"),
+    "短剧": (f"{SEARCH_YEAR}年热门短剧排行榜", f"{SEARCH_YEAR}年{{month}}月短剧热播榜", f"{SEARCH_YEAR}年{{month}}月红果短剧热播榜",
+           f"{SEARCH_YEAR}年红果短剧热播榜", f"{SEARCH_YEAR}最火短剧TOP10", f"{SEARCH_YEAR}年爆款短剧名单", f"{SEARCH_YEAR}年短剧百强榜",
+           f"{SEARCH_YEAR}年真人短剧热播榜", f"{SEARCH_YEAR}年短剧播放量排行榜", f"{PREVIOUS_SEARCH_YEAR}年热门短剧排行榜"),
+    "游戏": (f"{SEARCH_YEAR}年热门手游排行榜", f"{SEARCH_YEAR}年{{month}}月手游下载榜", f"{SEARCH_YEAR}年热门单机游戏", f"{PREVIOUS_SEARCH_YEAR}年热门单机游戏",
+           f"{SEARCH_YEAR}年PC游戏热门榜", f"{SEARCH_YEAR}年Steam热销游戏", f"{SEARCH_YEAR}年TapTap热门游戏"),
+    "软件": (f"{SEARCH_YEAR}年热门电脑软件", f"{SEARCH_YEAR}年常用电脑工具软件"),
 }
-_STOP_WORDS = ("排行榜", "榜单", "盘点", "推荐", "名单", "排名", "前十", "TOP", "No.", "2026", "2025",
+_STOP_WORDS = ("排行榜", "榜单", "盘点", "推荐", "名单", "排名", "前十", "TOP", "No.", str(SEARCH_YEAR), str(PREVIOUS_SEARCH_YEAR),
                "年", "月", "日", "短剧", "手游", "游戏", "单机", "电影", "电视剧", "动漫", "小说", "软件",
                "动画", "新番", "热播", "红果", "Steam", "TapTap", "PC", "第", "第一", "第二", "第三")
 
