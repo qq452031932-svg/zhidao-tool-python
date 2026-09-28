@@ -1,28 +1,356 @@
-# hong-1 开发交接
+# hong-1/hong-2 双目录开发交接
 
-更新：2026-09-20（Asia/Shanghai）
+更新：2026-09-28（Asia/Shanghai）
 
-## 1. 工作边界与目录
+## 0. 双目录隔离策略（2026-09-28 重要更新）
 
-D:\hong-1 是后续开发目录。不得修改 C:\Users\45203\Documents\dakazhandian 下的现有代码；D:\hong 保留为上一阶段来源，后续改动应落在 D:\hong-1。
+**本项目采用物理隔离的双目录策略，明确区分稳定版本与开发环境。**
+
+### 目录角色定义
+
+| 目录 | 角色 | 用途 | 修改策略 |
+|------|------|------|----------|
+| **D:\hong-1** | 稳定发版环境 | 已验证的可运行版本，用于紧急回退 | 🔒 **仅发布新版本时更新**，不在此开发新功能 |
+| **D:\hong-2** | 日常开发环境 | 当前活跃工作目录，所有新功能在此开发 | ✅ 随意修改、测试、提交 |
+
+### 稳定版本标记（D:\hong-1）
+
+- **Python 稳定版**
+  - Git 仓库：`D:\hong-1`（独立仓库）
+  - 稳定标签：`v1.0-release` 
+  - 提交 ID：`f6887a0`（2026-09-20 14:56:30）
+  - 状态：M01-M18 模块完整，测试通过
+
+- **C# 稳定版**
+  - Git 仓库：`D:\hong-1\dakazhandian`
+  - 主分支：`main` / `codex/superpan`
+  - 基线提交：`92334976`
+  - ⚠️ **注意**：最新界面开发在 worktree `dev-playwright`（分支 `codex/collect-on-release`，提交 `875ef777`），这部分还在迭代，不属于"稳定版"
+
+### 开发版本状态（D:\hong-2）
+
+- **Python 开发版**
+  - Git 仓库：`D:\hong-2`（独立仓库，从 hong-1 fork）
+  - 当前分支：`main`
+  - 最新提交：`f6887a0`
+  - 未提交改动：`lxds/miner.py`（年份参数化，待提交）
+  - 测试状态：224 passed, 1 failed（`test_zhidao_parse.py:82` 时间敏感测试）
+
+- **C# 开发版**
+  - ⚠️ **状态：需要重建**
+  - `D:\hong-2\dakazhandian` 当前是损坏副本（Git 配置仍指向 hong-1）
+  - **必须执行重建步骤**（见下方"重建 C# 开发环境"）
+
+### 回退策略
+
+当 hong-2 开发出现严重问题时：
+
+**方案 A：回退到最后的好提交**
+```bash
+cd D:\hong-2
+git log --oneline  # 找到最后一个稳定提交
+git reset --hard <commit-id>
+```
+
+**方案 B：完全重置到稳定版**
+```bash
+# 1. 备份当前工作（如果有未提交的重要改动）
+cd D:\hong-2
+git stash  # 或 git branch backup-$(date +%Y%m%d)
+
+# 2. 删除开发目录
+cd D:\
+rm -rf hong-2
+
+# 3. 从稳定版重新 clone
+mkdir hong-2
+cd hong-2
+
+# Python
+git clone D:\hong-1 .
+
+# C#
+git clone D:\hong-1\dakazhandian dakazhandian
+cd dakazhandian
+git checkout -b my-new-dev-branch
+```
+
+### 重建 C# 开发环境（立即执行）
+
+**当前 `D:\hong-2\dakazhandian` 的 Git 配置已损坏，必须重建：**
+
+```powershell
+# 1. 删除损坏的副本
+cd D:\hong-2
+Remove-Item -Recurse -Force dakazhandian
+
+# 2. 从 hong-1 重新 clone
+git clone D:\hong-1\dakazhandian dakazhandian
+
+# 3. 切换到开发分支（或新建分支）
+cd dakazhandian
+git checkout -b dev-my-feature  # 或 git checkout codex/collect-on-release
+
+# 4. 验证 Git 配置
+git remote -v
+git worktree list  # 确认引用正确
+```
+
+### 同步策略
+
+**hong-1 → hong-2（稳定版发布新版本后）**
+
+```bash
+# Python
+cd D:\hong-2
+git fetch D:\hong-1
+git merge <stable-tag>  # 如 v1.1-release
+
+# C#
+cd D:\hong-2\dakazhandian
+git fetch origin
+git merge main  # 或合并稳定分支
+```
+
+**hong-2 → hong-1（开发版验证通过，准备发版）**
+
+```bash
+# 1. 在 hong-2 确认测试通过
+cd D:\hong-2
+pytest tests/ -v  # Python
+cd dakazhandian && dotnet build  # C#
+
+# 2. 推送到 hong-1
+git push D:\hong-1 HEAD:main
+
+# 3. 在 hong-1 打标签
+cd D:\hong-1
+git tag -a v1.1-release -m "第二次发版"
+```
+
+### 文档路径约定
+
+- 本交接文档（`HANDOFF.md`）同时存在于两个目录
+- 修改时**先在 hong-2 更新**，验证通过后复制到 hong-1
+- 代码路径引用：
+  - 涉及稳定版时写 `D:\hong-1`
+  - 涉及开发版时写 `D:\hong-2`
+  - 如果是通用说明（两边都适用），写相对路径或标注 `<根目录>`
+
+---
+
+## 1. 最新接手入口（2026-09-28 审阅）
+
+本节记录 2026-09-28 代码审阅结果。后文保留 2026-09-20 的重建、复制和测试记录；历史记录不等于最新分支已完成同样的验收。
+
+### 当前开发位置与最新提交
+
+**⚠️ 重要：C# 最新开发仍在 hong-1 的 worktree，尚未迁移到 hong-2**
+
+- **C# 最新开发目录**：`D:\hong-1\dakazhandian\.worktrees\dev-playwright`
+- **分支**：`codex/collect-on-release`
+- **最新提交**：`875ef777`（2026-09-28，Claude 修复 UI 上下文捕获与连接清理逻辑）
+- **上一个人工提交**：`6b321a35`（2026-09-23 23:53:26 +08:00，修复监控反馈表头）
+
+**Python 开发目录**：`D:\hong-2`（独立 Git 仓库）
+- **分支**：`main`
+- **最新提交**：`f6887a0`（2026-09-20 14:56:30 +08:00，首次纳入版本控制）
+- **未提交改动**：`lxds/miner.py`（年份参数化）
+
+**重要提示**：
+1. 不要只看外层仓库（`D:\hong-1` 或 `D:\hong-2`）判断整个开发进度
+2. C# `dakazhandian` 根工作目录在 `codex/superpan` / `92334976`，不代表最新界面代码
+3. 修改前应在目标目录重新确认分支和工作区状态
+4. `D:\hong-2\dakazhandian` 当前是损坏副本，**必须先重建**（见第 0 节）
+
+### 最近功能进展与代码入口
+
+**2026-09-28 最新修复**（Claude 提交）：
+
+| 提交 | 内容 |
+|---|---|
+| `875ef777` | 修复 CollectViewModel UI 上下文捕获时机、进程存活检查、连接清理逻辑，补上 ValidateCookieCommand 初始化 |
+| `18600f99` | 修复 FakeCollectHelperProcess 缺少 StandardError 属性实现（测试桩编译错误） |
+
+**2026-09-23 近期提交**：
+
+| 提交 | 内容 |
+|---|---|
+| `6b321a35` | 修复监控反馈表头空白及点击不排序 |
+| `c2a79c2c`、`82810cfc` | 统一输入框文本内缩为 7px，修正占位提示与光标对齐 |
+| `37a4f1d8`、`943a7321` | 调整采集页布局，修复文字重叠和重复标题，增加关键词说明及文件导入 |
+| `f0248df2`、`79a7b1f5`、`773585f6` | 接入知道采集页面、C# 采集助手客户端和 Python 采集助手 |
+| `fc2ea807`、`eb4ebc35` | 用自带 CDP 客户端替换第三方浏览器驱动，并重新生成 helper 包 |
+
+**C# 代码入口**（以 `D:\hong-1\dakazhandian\.worktrees\dev-playwright` 为根）：
 
 | 路径 | 用途 |
 |---|---|
-| D:\hong-1\PRD-拉新流水线重建-v1.md | 原需求和模块验收标准 |
-| D:\hong-1\lxds、tests、demo | Python 拉新流水线 M01–M18、测试和离线演示 |
-| D:\hong-1\dist\lxds_rebuilt-0.1.0-py3-none-any.whl | 已构建的 Python 安装包 |
-| D:\hong-1\csharp_isolated | 以提交 608c524619ac91b9bbc17b52a7e0fe510783268a 为基线、实现 C02–C04 的 C# 独立副本 |
-| D:\hong-1\dakazhandian | 从原目录复制的完整 C# 项目和 Git 历史；C02–C04 尚未合入 |
-| D:\hong-1\README.md | Python 安装、CLI 和配置说明 |
-| D:\hong-1\csharp_isolated\CHANGES.md | C# 修改点、测试及限制 |
+| `src/BaiduBatchTransfer.App/Features/Collect/` | `CollectView.xaml`、`CollectViewModel.cs`：知道采集界面、关键词导入、开始/停止、进度和风险提示交互 |
+| `src/BaiduBatchTransfer.App/Features/Collect/` | `CollectHelperClient.cs`、`CollectHelperSession.cs`：Python 子进程定位、启动、生命周期与按行 JSON 通信 |
+| `tools/collect_helper/` | `main.py`、`protocol.py`、`lxds/`：Python 采集助手及其携带的采集模块 |
+| `src/BaiduBatchTransfer.App/Features/ShareAnalytics/ShareAnalyticsView.xaml` | 监控反馈表格；绑定代理在 `src/BaiduBatchTransfer.App/Features/Common/BindingProxy.cs` |
+| `tests/BaiduBatchTransfer.App.Tests/Features/` | `Collect*Tests.cs`、`ShareAnalyticsView*Tests.cs`：采集与监控反馈的 C# 测试入口 |
+| `tools/collect_helper/tests/test_collect_helper.py` | 采集助手协议、关键词文件、事件流、停止与风险答复测试 |
 
-完整 C# 目录复制了 397,618 个文件，Robocopy 失败数为 0。复制后的只读扫描显示源与副本的文件数、总字节数一致，增量扫描没有待补文件。仅在新副本内修正了 31 个 Git worktree 路径文件，并重建 3 个只指向 D:\hong-1 内部的目录连接。Git 列出的主仓库及 15 个 worktree 均已指向 D:\hong-1。原目录未改动。
+**Python 代码入口**（`D:\hong-2\lxds`）：
 
-完整 C# 主仓库当前提交为 92334976cf21de5a70b5771268f2646bc7599e60，分支 codex/superpan；transfer-share-link-replacement worktree 当前提交为 608c524619ac91b9bbc17b52a7e0fe510783268a。该 worktree 原本已有文档修改和未跟踪文件，已原样复制；不要清理或覆盖。其 src、tests 在复制时没有未提交差异。
+| 路径 | 用途 |
+|---|---|
+| `lxds/miner.py` | 挖词模块（⚠️ 有未提交的年份参数化改动） |
+| `lxds/collect.py` | 采集核心逻辑 |
+| `lxds/zhidao_parse.py` | 知道页面解析（⚠️ 测试失败：`test_within_range_uses_iso_dates`） |
+| `tests/` | Python 测试套件（224 passed, 1 failed） |
 
-## 2. 已实现的 Python 功能
+**架构说明**：
+- C# WPF 界面通过本机 Python 子进程调用采集能力
+- 资源、进度、日志等事件通过 stdin/stdout JSON 协议回传给界面
+- `tools/collect_helper/lxds/` 与外层 `D:\hong-2\lxds` 是不同目录，修改其中一处不会自动同步
 
-M01–M18 的代码均在 D:\hong-1\lxds，分别有离线测试和 demo。“已实现”表示代码具备该能力，不代表线上账号验收已经完成。
+### 本轮验证范围与后续约定
+
+**2026-09-28 审阅内容**：
+- ✅ 读取 C# 代码，发现并修复 2 个编译错误：
+  - `CollectViewModel.cs` UI 上下文捕获时机错误
+  - `FakeCollectHelperProcess.cs` 缺少 `StandardError` 属性
+- ✅ 验证 C# 编译通过（在 `D:\hong-1\dakazhandian\.worktrees\dev-playwright`）
+- ✅ 检查 Python 测试状态：224 passed, 1 failed
+- ✅ 发现 `lxds/miner.py` 有未提交的年份参数化改动
+- ✅ 核查双目录 Git 配置，发现 `D:\hong-2\dakazhandian` 损坏
+- ✅ 更新交接文档，增加双目录隔离策略说明
+
+**本轮未做的事**：
+- ❌ 未运行 C# 实机测试（只验证编译）
+- ❌ 未修复 Python 测试失败（`test_zhidao_parse.py:82` 时间敏感测试）
+- ❌ 未提交 `lxds/miner.py` 改动
+- ❌ 未重建 `D:\hong-2\dakazhandian`
+- ❌ 未执行完整端到端流程测试
+
+**立即待办事项**（按优先级）：
+
+1. **重建 C# 开发环境**（高优先级）
+   ```powershell
+   cd D:\hong-2
+   Remove-Item -Recurse -Force dakazhandian
+   git clone D:\hong-1\dakazhandian dakazhandian
+   cd dakazhandian
+   git checkout codex/collect-on-release
+   ```
+
+2. **提交 Python 改动**
+   ```bash
+   cd D:\hong-2
+   git add lxds/miner.py
+   git commit -m "refactor(miner): 参数化搜索模板年份以便跨年维护"
+   ```
+
+3. **修复时间敏感测试**
+   - 编辑 `tests/test_zhidao_parse.py:82`
+   - 用相对日期替换硬编码的 `"2026-09-18"`
+   - 运行 `pytest tests/test_zhidao_parse.py -v` 验证
+
+4. **更新稳定版标签**（等开发版验证通过后）
+   ```bash
+   cd D:\hong-1
+   git tag -a v1.1-release -m "第二次发版：修复 UI 上下文、年份参数化"
+   ```
+
+**后续开发约定**：
+- 所有新功能在 `D:\hong-2` 开发
+- `D:\hong-1` 保持锁定，仅发版时更新
+- 修改 Python 代码：在 `D:\hong-2\lxds` 修改
+- 修改 C# 代码：重建 `D:\hong-2\dakazhandian` 后在那里修改
+- 提交前运行测试：Python `pytest tests/`，C# `dotnet build`
+- C02–C04 独立副本的迁移状态本轮未复核；如需这些功能，先比较实际代码
+
+### 已知问题清单（2026-09-28）
+
+**高优先级（阻塞开发）**：
+
+1. **`D:\hong-2\dakazhandian` Git 配置损坏**
+   - 症状：Git 配置仍指向 `D:\hong-1` 的 worktree 路径
+   - 影响：无法在 hong-2 独立开发 C# 代码
+   - 修复方案：删除后重新 clone（见第 0 节"重建 C# 开发环境"）
+
+**中优先级（影响测试）**：
+
+2. **`tests/test_zhidao_parse.py:82` 时间敏感测试失败**
+   - 症状：`assert within_range("2026-09-18", 7) is True` 已过期（今天是 9 月 28 日）
+   - 影响：测试套件显示 `224 passed, 1 failed`
+   - 修复方案：
+     ```python
+     from datetime import date, timedelta
+     recent = (date.today() - timedelta(days=3)).isoformat()
+     old = (date.today() - timedelta(days=365)).isoformat()
+     assert within_range(recent, 7) is True
+     assert within_range(old, 7) is False
+     ```
+
+3. **`lxds/miner.py` 有未提交改动**
+   - 内容：年份参数化（`SEARCH_YEAR = "2026"`）
+   - 影响：改动未进版本控制，克隆仓库会丢失
+   - 修复方案：`git add lxds/miner.py && git commit`
+
+**低优先级（文档）**：
+
+4. **`README.md` 示例路径过时**
+   - 内容：示例写 `D:/hong/output`，应为 `D:/hong-2/output`
+   - 影响：用户按示例操作会失败
+   - 修复方案：全局替换路径
+
+5. **两处 `lxds` 目录不同步**
+   - `D:\hong-2\lxds`（Python 开发版）
+   - `D:\hong-1\dakazhandian\.worktrees\dev-playwright\tools\collect_helper\lxds`（C# 携带的副本）
+   - 影响：修改一处不会自动同步到另一处
+   - 建议：建立明确的同步流程或符号链接
+
+---
+
+## 2. 工作边界与目录（已更新）
+
+**主工作目录**：`D:\hong-2`（日常开发）  
+**稳定版目录**：`D:\hong-1`（发版快照，仅紧急回退时使用）
+
+**开发环境（hong-2）**：
+
+| 路径 | 用途 | 状态 |
+|---|---|---|
+| `D:\hong-2\PRD-拉新流水线重建-v1.md` | 原需求和模块验收标准 | ✅ |
+| `D:\hong-2\lxds`、`tests`、`demo` | Python 拉新流水线 M01–M18、测试和离线演示 | ✅（1 个测试失败） |
+| `D:\hong-2\dist\lxds_rebuilt-0.1.0-py3-none-any.whl` | 已构建的 Python 安装包 | ✅ |
+| `D:\hong-2\dakazhandian` | C# 项目（⚠️ 需要重建） | ❌ Git 配置损坏 |
+| `D:\hong-2\README.md` | Python 安装、CLI 和配置说明 | ⚠️ 示例路径过时 |
+| `D:\hong-2\HANDOFF.md` | 本交接文档 | ✅ 已更新 |
+
+**稳定环境（hong-1）**：
+
+| 路径 | 用途 | 备注 |
+|---|---|---|
+| `D:\hong-1\` | Python 稳定版（Git 仓库） | 提交 `f6887a0`，标签 `v1.0-release` |
+| `D:\hong-1\dakazhandian` | C# 稳定版主仓库 | 分支 `codex/superpan`，提交 `92334976` |
+| `D:\hong-1\dakazhandian\.worktrees\dev-playwright` | C# 最新界面开发（⚠️ 仍在迭代） | 分支 `codex/collect-on-release`，提交 `875ef777` |
+| `D:\hong-1\csharp_isolated` | C02–C04 独立副本 | 基线提交 `608c524619ac91b9bbc17b52a7e0fe510783268a` |
+
+**历史记录（2026-09-20 复制记录）**：
+- 完整 C# 目录复制了 397,618 个文件，Robocopy 失败数为 0
+- 复制后修正了 31 个 Git worktree 路径文件，重建 3 个目录连接
+- 主仓库及 15 个 worktree 均已指向 `D:\hong-1`
+- `transfer-share-link-replacement` worktree（提交 `608c524619ac91b9bbc17b52a7e0fe510783268a`）原本已有文档修改和未跟踪文件，已原样复制
+
+**不再使用的目录**：
+- `C:\Users\45203\Documents\dakazhandian`（原始目录，不得修改）
+- `D:\hong`（上一阶段来源，保留但不再开发）
+
+## 3. 已实现的 Python 功能（验证状态更新）
+
+M01–M18 的代码均在 `D:\hong-2\lxds`（开发版）和 `D:\hong-1\lxds`（稳定版），分别有离线测试和 demo。
+
+**测试状态**：
+- ✅ **224 passed**（2026-09-28 实测）
+- ❌ **1 failed**：`tests/test_zhidao_parse.py::test_within_range_uses_iso_dates`（时间敏感测试过期）
+- ⚠️ 交接文档历史记录写 “225 passed”，那是 2026-09-20 的结果，不代表当前状态
+
+**”已实现”的含义**：代码具备该能力，离线测试通过，但不代表线上账号验收已经完成。
 
 | 模块 | 已实现的功能 |
 |---|---|
@@ -47,7 +375,7 @@ M01–M18 的代码均在 D:\hong-1\lxds，分别有离线测试和 demo。“�
 
 完整主链路：挖词 → 百度知道采集 → 网盘转存/生成新分享 → 问答模板 → 知道批量上传。外部转存模式把采集表放入指定 inbox，等待本次任务之后产生的 C# 结果表，再由 M02 读取。
 
-当前交付是命令行程序，没有新图形界面。凭据需由调用程序或脚本通过 ConfigStore 写入；尚无配置凭据的 CLI 子命令。M15 的采集断点已接入；转存和模板阶段主要依靠落盘的中间表从阶段入口重跑，不应宣称已具备逐行自动断点恢复。README 示例 workdir 仍写 D:/hong/output，新开发时应改为 D:/hong-1/output 或其他新目录。
+外层 Python 包的交付形式仍是命令行程序；最新 C# 分支已新增知道采集图形界面，详见第 0 节。外层 CLI 的凭据需由调用程序或脚本通过 ConfigStore 写入；尚无配置凭据的 CLI 子命令。M15 的采集断点已接入；转存和模板阶段主要依靠落盘的中间表从阶段入口重跑，不应宣称已具备逐行自动断点恢复。README 示例 workdir 仍写 D:/hong/output，新开发时应改为 D:/hong-1/output 或其他新目录。
 
 ## 3. 已实现的 C# 修改及隔离状态
 
@@ -59,9 +387,11 @@ C03：C# 结果表输出“资源名称 / 分享链接 / 提取码 / 状态 / �
 
 C04：C# 导入识别“资源链接”和“网盘链接”。测试读取 Python M02 生成的资源表，无需人工映射。
 
-上述修改只在 csharp_isolated；尚未合入 D:\hong-1\dakazhandian 的完整源码。不要把两处都称为已集成。
+截至 2026-09-20 的交接记录，上述修改只在 csharp_isolated，尚未合入 D:\hong-1\dakazhandian 的完整源码。2026-09-26 未逐项复核其在最新分支中的整合状态，不应直接宣称已经集成，也不要未比较代码就覆盖迁移。
 
 ## 4. 已有验证与缺口
+
+以下为 2026-09-20 交接保留的历史验证和待验收事项；2026-09-26 未重跑，最新分支的验证范围见第 0 节。
 
 2026-09-20 在 D:\hong-1 重新运行：
 - py -3.12 -m pytest tests -q -p no:cacheprovider：225 passed。
@@ -74,11 +404,12 @@ C02 测试目前使用按 PRD 字段构造的响应，而非 C01 的六份真实
 
 ## 5. 接手顺序
 
-1. 先读本文件、根目录 PRD、README 与 csharp_isolated\CHANGES.md；确认只在 D:\hong-1 开发。
-2. 在 D:\hong-1\dakazhandian 为新功能选独立分支或 worktree，保留已复制的文档改动和未跟踪文件。核对 csharp_isolated 与完整项目的差异，再将 C02–C04 安全整合到新开发分支；不要直接覆盖整个 src/tests。
-3. 取得用户在另一台电脑 C01 存档的 6 份真实响应 JSON 和结果表，脱敏后加入测试 fixture，复验 errno 12 三分支。
-4. 用一次性测试账号完成 I6：同一批 20 条链接由 Python 与 C# 各处理一次，逐条比较成功、失败和重复跳过。随后完成 I1–I7 及采集风控真机验收。
-5. 定位 C# 全方案测试中的实际失败并修复，再考虑交付或合并。不要以定向测试通过代替全量验收。
+1. 先读第 0 节并承接用户的具体修改要求；用户尚未布置的功能或历史待办不自动开工。
+2. 根据修改对象选择目录：最新桌面界面/采集功能从 dev-playwright 工作目录接手，外层 Python CLI 从 D:\hong-1\lxds 接手。改前重新核查分支、最新提交及未提交文件，保留已有改动。需要隔离时从确认的目标基线创建分支或 worktree，不默认从较旧的 codex/superpan 开始。
+3. 按任务阅读相关 PRD、README、设计与测试。任务涉及 C02–C04 时，先比较 csharp_isolated 与目标分支，再决定需要迁移的具体改动；不要覆盖整个 src/tests。
+4. 修改后运行与改动对应的验证，分别记录自动测试、构建和实机验证结果，不以历史通过记录代替本轮验证。
+
+保留的历史验收待办（按后续任务范围安排）：取得 C01 的 6 份脱敏真实响应及结果表，复验 errno 12 三分支；完成 I6 的 Python/C# 同批 20 条链接对比，再完成其余 I1–I7 与采集真机验收；定位 C# 全方案测试失败。上述工作未在本轮执行，不以定向测试通过代替全量验收。
 
 ## 6. 常用命令
 
@@ -93,5 +424,13 @@ C02 测试目前使用按 PRD 字段构造的响应，而非 C01 的六份真实
 在 D:\hong-1\dakazhandian：
     git status --short --branch
     git worktree list
+
+核查最新开发目录（可从任意目录运行）：
+
+```powershell
+git -C D:\hong-1\dakazhandian\.worktrees\dev-playwright status --short --branch
+git -C D:\hong-1\dakazhandian\.worktrees\dev-playwright log -5 --date=iso-strict --format="%h %cI %s"
+git -C D:\hong-1\dakazhandian for-each-ref --sort=-committerdate --count=5 --format="%(committerdate:iso-strict) %(refname:short) %(objectname:short)"
+```
 
 不要在交接文档、日志或测试样本中写入真实 Cookie、DeepSeek Key 或 token。
