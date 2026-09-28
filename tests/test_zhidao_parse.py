@@ -1,5 +1,7 @@
 """M11 搜索页、详情页、链接和名称解析的离线样本。"""
 
+from datetime import date, timedelta
+
 import pytest
 
 from lxds.zhidao_parse import (
@@ -79,6 +81,9 @@ def test_pan_entries_preserve_code_and_normalize_wrappers():
 
 
 def test_within_range_uses_iso_dates():
-    assert within_range("2026-09-18", 7) is True
-    assert within_range("2020-01-01", 7) is False
+    today = date.today()
+    recent = (today - timedelta(days=3)).isoformat()
+    old = (today - timedelta(days=365)).isoformat()
+    assert within_range(recent, 7) is True
+    assert within_range(old, 7) is False
     assert within_range("unknown", 7) is False
