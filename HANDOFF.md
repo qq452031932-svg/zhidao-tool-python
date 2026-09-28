@@ -2,6 +2,24 @@
 
 更新：2026-09-28（Asia/Shanghai）
 
+## 最新执行结果（2026-09-28 12:27，优先于下方历史记录）
+
+用户指定的六项任务已按顺序完成。下文原有“必须重建”“224 passed, 1 failed”“miner.py 未提交”等描述属于执行前记录，不应再次据此删除当前开发目录。
+
+- **C# 开发环境**：`D:\hong-2\dakazhandian` 已独立克隆，分支 `codex/collect-on-release`，当前提交 `8d3d9fd7`。`origin` 指向 `D:\hong-1\dakazhandian`，worktree 列表只包含 hong-2 本仓库。
+- **重建发现的编译缺口**：原提交 `875ef777` 缺少 `CollectHelperClient.HasExited`，干净克隆无法编译。本次补齐属性并增加进程生命周期回归测试，已提交。全 solution 构建通过，0 警告、0 错误；采集客户端与 ViewModel 的 33 项测试通过。
+- **助手运行时**：已从原开发目录复制 `.artifacts/helper-bundle-cdp` 到新 C# 仓库；真实助手握手测试通过。系统默认 Python 3.14 缺少 requests，外层 Python 测试使用依赖齐全的 `py -3.12`。
+- **Python 测试修复**：`tests/test_zhidao_parse.py` 改用相对日期，提交 `eca65b0`；解析模块 14 项测试通过。
+- **年份参数化**：`lxds/miner.py` 原有改动已提交为 `5aa67dc`，提交消息为 `refactor(miner): 参数化年份常量`。
+- **完整 Python 测试**：hong-2 与同步后的 hong-1 均为 **225 passed**。
+- **README**：工作目录示例已改为 `D:/hong-2/output`，提交 `ab8c8cf`。
+- **稳定标签**：外层 Python 仓库已在 hong-1 创建注解标签 `v1.1-release`，指向 `ab8c8cf416c06b46e6af815e45a9cef08aa654d0`，并同步到 hong-2。此标签不包含被外层 Git 忽略的独立 C# 仓库。
+- **保留现场**：旧 hong-2 C# 副本移至 `D:\hong-2\.recovery\20260928-environment-rebuild\dakazhandian-original`；其中旧 worktree 指针仍可能指向 hong-1，仅作为恢复备份，不作为开发入口。hong-1 的 dev-playwright 原有 15 个未提交文件保持原样，另有补丁备份；其未提交改动未整批迁入新仓库。
+- **稳定目录原有文档修改**：已保存为恢复目录中的 `hong-1-HANDOFF-before-release.md`、补丁和 hong-1 的 Git stash（标识记录在 `hong-1-handoff-stash.txt`），未重新应用。原稳定提交另由 `codex/pre-v1.1-release-20260928` 分支保留。
+- **验证边界**：C# 稳定分支 `codex/superpan` 与开发分支已分叉，本轮未整条合并；C# 全量测试、界面实机及真实账号端到端验收仍未完成。本次标签是 Python 源码稳定点，未重新生成安装包。
+
+---
+
 ## 0. 双目录隔离策略（2026-09-28 重要更新）
 
 **本项目采用物理隔离的双目录策略，明确区分稳定版本与开发环境。**
