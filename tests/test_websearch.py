@@ -15,8 +15,13 @@ from lxds.websearch import (
 
 
 RESULT = '''<html><h3><a href="https://zhidao.baidu.com/question/123.html">《斗破苍穹》资源</a></h3>
-<div class="c-abstract">分享链接：https://pan.baidu.com/s/1AbCd 提取码：ab12</div></html>'''
+<div class="c-abstract">分享链接：https://pan.baidu.com/s/1AbCdEfGh 提取码：ab12</div></html>'''
 RISK = "<html><body>请完成百度安全验证</body></html>"
+
+
+@pytest.fixture(autouse=True)
+def skip_site_page_delay(monkeypatch):
+    monkeypatch.setattr("lxds.websearch.random.uniform", lambda *_: 0)
 
 
 class FakeFetcher:
@@ -32,12 +37,13 @@ class FakeFetcher:
         return self.search_html, None
 
 
-def test_site_queries_are_distinct_and_cover_zhidao_and_pan():
+def test_site_queries_use_six_zhidao_variants_with_pan_suffixes():
     queries = site_queries(" 斗破苍穹 ")
     assert len(queries) == len(set(queries))
     assert all("斗破苍穹" in query for query in queries)
-    assert any(query.startswith("site:zhidao.baidu.com ") for query in queries)
-    assert any(query.startswith("site:pan.baidu.com ") for query in queries)
+    assert len(queries) == 6
+    assert all(query.startswith("site:zhidao.baidu.com ") and query.endswith("百度网盘") for query in queries)
+    assert BaiduSiteSearchCollector(FakeFetcher(), Event()).max_variants == 6
     assert site_queries("  ") == []
 
 
@@ -53,7 +59,7 @@ def test_web_collector_extracts_title_link_and_password():
     assert records == [{
         "title": "《斗破苍穹》资源",
         "source_url": "https://zhidao.baidu.com/question/123.html",
-        "links": [{"link": "https://pan.baidu.com/s/1AbCd?pwd=ab12", "pwd": "ab12"}],
+        "links": [{"link": "https://pan.baidu.com/s/1AbCdEfGh?pwd=ab12", "pwd": "ab12"}],
     }]
     assert all(purpose == "search" for _, _, purpose in fetcher.calls)
 
@@ -68,16 +74,20 @@ def test_web_collector_returns_empty_on_risk_and_logs():
 def test_site_collector_follows_detail_and_deduplicates():
     search_html = '''<h3><a href="https://zhidao.baidu.com/question/123.html">问题 A</a></h3>
     <h3><a href="https://zhidao.baidu.com/question/123.html">问题 A 重复</a></h3>'''
-    detail = "<title>斗破苍穹网盘分享</title>链接：https://pan.baidu.com/s/1AbCd 提取码：xy34"
+    detail = "<title>斗破苍穹网盘分享</title>链接：https://pan.baidu.com/s/1AbCdEfGh 提取码：xy34"
     fetcher = FakeFetcher(search_html, detail)
     collector = BaiduSiteSearchCollector(fetcher, Event(), max_variants=1)
     records = collector.search("斗破苍穹", None)
     assert records == [{
         "title": "斗破苍穹网盘分享",
-        "source_url": "https://zhidao.baidu.com/question/123.html",
-        "links": [{"link": "https://pan.baidu.com/s/1AbCd?pwd=xy34", "pwd": "xy34"}],
+        "source_url": "https://zhidao.baidu.com/question/123",
+        "links": [{"link": "https://pan.baidu.com/s/1AbCdEfGh", "pwd": "xy34"}],
     }]
-    assert sum("zhidao.baidu.com/question/" in url for url, _, _ in fetcher.calls) == 1
+    # Legacy deduplicates question URLs per page, share links across pages. Three
+    # consecutive pages without new links terminate this variant after its first hit.
+    assert sum("zhidao.baidu.com/question/" in url for url, _, _ in fetcher.calls) == 4
+    assert [int(parse_qs(urlsplit(url).query)["pn"][0]) for url, _, _ in fetcher.calls
+            if "www.baidu.com" in url] == [0, 10, 20, 30]
     assert parse_qs(urlsplit(fetcher.calls[0][0]).query)["wd"][0].startswith("site:zhidao.baidu.com")
 
 
@@ -91,7 +101,7 @@ def test_site_collector_stops_on_risk_and_preserves_previous_records():
 
     fetcher = RiskAfterFirst(
         '<h3><a href="https://zhidao.baidu.com/question/123.html">问题</a></h3>',
-        "<title>已采结果</title>https://pan.baidu.com/s/1AbCd",
+        "<title>已采结果</title>https://pan.baidu.com/s/1AbCdEfGh",
     )
     collector = BaiduSiteSearchCollector(fetcher, Event(), max_variants=2)
     records = collector.search("测试", None)

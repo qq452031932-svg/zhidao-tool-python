@@ -12,6 +12,17 @@ from lxds.checkpoint import load
 from lxds.pool import SlotPool
 
 
+@pytest.fixture(autouse=True)
+def isolate_offline_pool_and_optional_browsing(monkeypatch):
+    # v1.0.4 startup probes Clash; these tests never contact a real proxy/network.
+    monkeypatch.setattr("lxds.pool.probe_clash_detail", lambda **kwargs: (7890, True, ""), raising=False)
+    monkeypatch.setattr("lxds.collect.pick_every", lambda bounds: 10000)
+
+
+def precise_query(word):
+    return f"求{word}百度网盘链接"
+
+
 def page(items=(), next_pn=None):
     chunks = []
     for qid, title, when in items:
@@ -25,7 +36,9 @@ def page(items=(), next_pn=None):
 
 
 def detail(link, pwd="abcd"):
-    return f'<div class="best-text">分享 https://pan.baidu.com/s/{link} 提取码：{pwd}</div>'
+    # Strict legacy detail rejects responses below 2000 chars and share IDs below 8.
+    return (f'<div class="best-text">分享 https://pan.baidu.com/s/1fixture{link} 提取码：{pwd}</div>'
+            + '<script>' + 'x' * 2100 + '</script>')
 
 
 class FakePool:
@@ -38,7 +51,7 @@ class FakePool:
 
     def on_silent_risk(self, keywords, page):
         self.probes.append((keywords, page))
-        return True
+        return False  # A healthy probe means no retry is needed.
 
 
 class FakeFetcher:
@@ -62,9 +75,9 @@ class FakeFetcher:
 
 def test_precise_ten_keywords_emit_at_most_one_each(tmp_path):
     today = date.today().isoformat()
-    words = [f"书{i}" for i in range(10)]
+    words = [f"书籍{i}" for i in range(10)]
     fetcher = FakeFetcher(
-        {(word, 0): page([(f"{i}1", f"求《{word}》链接", today),
+        {(precise_query(word), 0): page([(f"{i}1", f"求《{word}》链接", today),
                           (f"{i}2", f"求《{word}》链接", today)]) for i, word in enumerate(words)},
         {f"{i}{j}": detail(f"link{i}{j}") for i in range(10) for j in (1, 2)},
     )
@@ -72,14 +85,15 @@ def test_precise_ten_keywords_emit_at_most_one_each(tmp_path):
                            pool=FakePool(), checkpoint_path=str(tmp_path / "cp.json"))
     result = worker.run()
     assert len(result["items"]) == 10
-    assert [row["资源名称"] for row in result["items"]] == words
+    # Original precise mode shuffles keywords in blocks of ten.
+    assert {row["资源名称"] for row in result["items"]} == set(words)
     assert len(fetcher.details_requested) == 10
 
 
-def test_fuzzy_widens_one_month_one_year_all_until_target(tmp_path):
+def test_fuzzy_widens_after_three_recent_rounds_but_stops_at_three_months(tmp_path):
     now = date.today()
     old = [("1", "求《一月书》链接", (now - timedelta(days=12)).isoformat()),
-           ("2", "求《一年书》链接", (now - timedelta(days=120)).isoformat()),
+           ("2", "求《上月书》链接", (now - timedelta(days=60)).isoformat()),
            ("3", "求《古书》链接", (now - timedelta(days=900)).isoformat())]
     fetcher = FakeFetcher({("求小说百度网盘链接", 0): page(old)},
                           {"1": detail("one"), "2": detail("two"), "3": detail("three")})
@@ -88,31 +102,39 @@ def test_fuzzy_widens_one_month_one_year_all_until_target(tmp_path):
                            pool=FakePool(), checkpoint_path=str(tmp_path / "cp.json"),
                            on_status=status.append)
     result = worker.run()
-    assert len(result["items"]) == 3
-    assert fetcher.searches.count(("求小说百度网盘链接", 0)) == 3
-    assert any("一年" in message for message in status)
-    assert any("全部" in message for message in status)
+    assert [row['资源名称'] for row in result['items']] == ['一月书', '上月书']
+    # The month stage is capped at three rounds; 90 days reuse its normal page.
+    assert fetcher.searches.count(("求小说百度网盘链接", 0)) == 1
+    assert any("3 轮" in message and "最近三个月" in message for message in status)
+    assert not any("自动放宽到「最近一年」" in message for message in status)
+    assert not any("全部" in message for message in status)
 
 
-def test_five_empty_keywords_call_health_probe(tmp_path):
+@pytest.mark.parametrize(("misses", "probes"), [(14, 0), (15, 1)])
+def test_fifteen_empty_keywords_call_health_probe(tmp_path, misses, probes):
     pool = FakePool()
-    worker = CollectWorker(keyword=[f"空{i}" for i in range(5)], fetcher=FakeFetcher({}),
+    worker = CollectWorker(keyword=[f"空词{i}" for i in range(misses)], fetcher=FakeFetcher({}),
                            pool=pool, checkpoint_path=str(tmp_path / "cp.json"))
     assert worker.run()["items"] == []
-    assert len(pool.probes) == 1
+    assert len(pool.probes) == probes
+    assert worker.stats["no_link"] == misses
+    if probes:
+        assert len(pool.probes[0][0]) == 15
 
 
-def test_five_empty_pages_of_one_query_call_health_probe(tmp_path):
+def test_precise_stops_after_two_empty_pages_without_keyword_health_probe(tmp_path):
     pool = FakePool()
     pages = {}
     for pn in (0, 10, 20, 30, 40):
         next_page = (f'<a class="pager-next" href="/search?word=x&pn={pn + 10}">下一页</a>'
                      if pn < 40 else "")
-        pages[("空词", pn)] = "没有找到相关结果" + next_page
-    worker = CollectWorker(keyword="空词", fetcher=FakeFetcher(pages), pool=pool,
+        pages[(precise_query("空词"), pn)] = "没有找到相关结果" + next_page
+    fetcher = FakeFetcher(pages)
+    worker = CollectWorker(keyword="空词", fetcher=fetcher, pool=pool,
                            checkpoint_path=str(tmp_path / "cp.json"))
     assert worker.run()["found"] == 0
-    assert len(pool.probes) == 1
+    assert fetcher.searches == [(precise_query("空词"), 0), (precise_query("空词"), 10)]
+    assert pool.probes == []
 
 
 def test_twenty_real_searches_interleave_common_questions_without_import(tmp_path, monkeypatch):
@@ -122,7 +144,8 @@ def test_twenty_real_searches_interleave_common_questions_without_import(tmp_pat
     worker = CollectWorker(keyword=words, fetcher=fetcher, pool=FakePool(),
                            checkpoint_path=str(tmp_path / "cp.json"))
     result = worker.run()
-    common = [word for word, _ in fetcher.searches if word not in words]
+    queries = {precise_query(word) for word in words}
+    common = [word for word, _ in fetcher.searches if word not in queries]
     assert len(common) == 6
     assert not result["items"]
 
@@ -144,21 +167,21 @@ def test_duplicate_link_and_name_logged_separately(tmp_path):
 
 
 def test_nonadvancing_pn_ends_query(tmp_path):
-    fetcher = FakeFetcher({("词", 0): page([("1", "求《甲书》链接", date.today().isoformat())], next_pn=0)},
+    fetcher = FakeFetcher({(precise_query("词"), 0): page([("1", "求《甲书》链接", date.today().isoformat())], next_pn=0)},
                           {"1": '<div class="best-text">没有链接</div>'})
     logs = []
     worker = CollectWorker(keyword="词", fetcher=fetcher, pool=FakePool(),
                            checkpoint_path=str(tmp_path / "cp.json"), on_log=logs.append)
     worker.run()
-    assert fetcher.searches == [("词", 0)]
+    assert fetcher.searches == [(precise_query("词"), 0)]
     assert any("分页 pn=0 未继续前进" in line for line in logs)
-    assert worker.stats["idle_pages"] == 1
+    assert worker.stats["no_link"] == 1  # precise records per-keyword misses, not fuzzy idle pages.
 
 
 def test_stop_from_item_callback_returns_quickly_and_resume_keeps_rows(tmp_path):
     today = date.today().isoformat()
     path = str(tmp_path / "cp.json")
-    pages = {(word, 0): page([(str(i), f"求《{word}》链接", today)])
+    pages = {(precise_query(word), 0): page([(str(i), f"求《{word}》链接", today)])
              for i, word in enumerate(("甲书", "乙书"), 1)}
     details = {"1": detail("one"), "2": detail("two")}
     first_fetcher = FakeFetcher(pages, details)
@@ -174,7 +197,7 @@ def test_stop_from_item_callback_returns_quickly_and_resume_keeps_rows(tmp_path)
                             pool=FakePool(), checkpoint_path=path, resume=True).run()
     assert resumed["found"] == 2
     assert {row["资源名称"] for row in resumed["items"]} == {"甲书", "乙书"}
-    assert load(path)["found"] == 2
+    assert load(path) == {}  # Natural completion removes the resumable checkpoint.
 
 
 def test_supplement_uses_direct_slot_even_with_proxy_account(tmp_path, monkeypatch):
@@ -192,7 +215,7 @@ def test_supplement_uses_direct_slot_even_with_proxy_account(tmp_path, monkeypat
         def search(self, term, on_log):
             self.fetcher.get("https://www.baidu.com/s?wd=x")
             return [{"title": term, "source_url": "https://example.com",
-                     "links": [{"link": "https://pan.baidu.com/s/new", "pwd": "abcd"}]}]
+                     "links": [{"link": "https://pan.baidu.com/s/1fixture-new", "pwd": "abcd"}]}]
 
     worker = CollectWorker(keyword="甲书", fetcher=FakeFetcher({}), pool=pool,
                            checkpoint_path=str(tmp_path / "cp.json"),
@@ -214,10 +237,11 @@ def test_supplement_risk_stops_without_losing_site_results(tmp_path):
 
         def search(self, term, on_log):
             called.append(term)
+            self.stop_supplement = True  # The collector flag, not log wording, stops later terms.
             on_log("百度网页搜索失败：安全验证")
             return []
 
-    result = CollectWorker(keyword=["甲", "乙"], mode="fuzzy", count=2,
+    result = CollectWorker(keyword=["甲", "乙"], mode="fuzzy", count=2, time_range="全部",
                            fetcher=fetcher, pool=FakePool(),
                            checkpoint_path=str(tmp_path / "cp.json"),
                            supplement_factory=Supplement).run()
@@ -227,7 +251,7 @@ def test_supplement_risk_stops_without_losing_site_results(tmp_path):
 
 def test_precise_supplement_does_not_add_second_item_for_found_keyword(tmp_path):
     today = date.today().isoformat()
-    fetcher = FakeFetcher({("资源词", 0): page([("1", "求《实际书名》链接", today)])},
+    fetcher = FakeFetcher({(precise_query("资源词"), 0): page([("1", "求《实际书名》链接", today)])},
                           {"1": detail("one")})
     called = []
 
@@ -238,8 +262,8 @@ def test_precise_supplement_does_not_add_second_item_for_found_keyword(tmp_path)
         def search(self, term, on_log):
             called.append(term)
             return [{"title": "其它书", "source_url": "https://example.com",
-                     "links": [{"link": "https://pan.baidu.com/s/two", "pwd": "abcd"},
-                               {"link": "https://pan.baidu.com/s/three", "pwd": "abcd"}]}]
+                     "links": [{"link": "https://pan.baidu.com/s/1fixture-two", "pwd": "abcd"},
+                               {"link": "https://pan.baidu.com/s/1fixture-three", "pwd": "abcd"}]}]
 
     result = CollectWorker(keyword="资源词", fetcher=fetcher, pool=FakePool(),
                            checkpoint_path=str(tmp_path / "cp.json"),
@@ -248,13 +272,16 @@ def test_precise_supplement_does_not_add_second_item_for_found_keyword(tmp_path)
     assert called == []
 
 
-def test_supplement_waits_for_direct_without_falling_back_to_proxy(tmp_path, monkeypatch):
+def test_supplement_pins_direct_even_during_cooldown_without_falling_back_to_proxy(tmp_path, monkeypatch):
     visited = []
     pool = SlotPool([{"name": "直连", "cookie": "a"}, {"name": "代理", "cookie": "b"}],
                     pause_ask=lambda payload: False, on_log=lambda message: None,
                     stop_event=Event(), on_status=lambda message: None)
     pool.start()
-    pool.slots[0].unavailable_until = time.monotonic() + 0.25
+    # v1.0.4 randomizes exit assignment and HumanPacer owns the clock domain.
+    for slot in pool.slots:
+        slot.pacer.reset()
+    next(slot for slot in pool.slots if slot.exit_kind == "direct").pacer.cool_down(0.25)
     monkeypatch.setattr(pool, "fetch", lambda slot, url, **kwargs: visited.append(slot.exit_kind) or "没有找到相关结果")
 
     class Supplement:
@@ -268,19 +295,17 @@ def test_supplement_waits_for_direct_without_falling_back_to_proxy(tmp_path, mon
     worker = CollectWorker(keyword="甲书", fetcher=FakeFetcher({}), pool=pool,
                            checkpoint_path=str(tmp_path / "cp.json"),
                            supplement_factory=Supplement)
-    timer = Timer(0.05, worker.stop)
-    timer.start()
     started = time.monotonic()
     result = worker.run()
-    timer.join()
     assert time.monotonic() - started < 0.2
-    assert result["stopped"]
-    assert visited == []
+    # v1.0.4 pins a matching direct slot immediately; pacing applies to pool selection.
+    assert not result["stopped"]
+    assert visited == ["direct"]
 
 
 def test_precise_resume_after_mid_keyword_stop_keeps_one_item(tmp_path):
     today = date.today().isoformat()
-    pages = {("资源词", 0): page([
+    pages = {(precise_query("资源词"), 0): page([
         ("1", "求《甲书》链接", today), ("2", "求《乙书》链接", today),
     ])}
     details = {"1": detail("one"), "2": detail("two")}
@@ -303,10 +328,10 @@ def test_precise_supplement_stops_after_first_link_per_keyword(tmp_path):
 
         def search(self, term, on_log):
             return [{"title": "甲书", "source_url": "https://example.com",
-                     "links": [{"link": "https://pan.baidu.com/s/one", "pwd": "abcd"},
-                               {"link": "https://pan.baidu.com/s/two", "pwd": "abcd"}]},
+                     "links": [{"link": "https://pan.baidu.com/s/1fixture-one", "pwd": "abcd"},
+                               {"link": "https://pan.baidu.com/s/1fixture-two", "pwd": "abcd"}]},
                     {"title": "乙书", "source_url": "https://example.com/2",
-                     "links": [{"link": "https://pan.baidu.com/s/three", "pwd": "abcd"}]}]
+                     "links": [{"link": "https://pan.baidu.com/s/1fixture-three", "pwd": "abcd"}]}]
 
     result = CollectWorker(keyword="资源词", fetcher=FakeFetcher({}), pool=FakePool(),
                            checkpoint_path=str(tmp_path / "cp.json"),

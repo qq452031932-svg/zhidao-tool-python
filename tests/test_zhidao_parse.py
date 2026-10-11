@@ -23,7 +23,7 @@ from lxds.zhidao_parse import (
     ("raw", "expected"),
     [
         ("凡I人I修I仙", "凡人修仙"),
-        ("斗l破l苍l穹ltlxlt", "斗破苍穹"),
+        ("斗l破l苍l穹ltlxlt", "斗破苍穹ltlxlt"),
         ("战Q神", "战Q神"),
         ("大l陆", "大l陆"),
         ("IPX-580", "IPX-580"),
@@ -33,8 +33,10 @@ def test_strip_spam_letters_requires_same_letter_twice(raw, expected):
     assert strip_spam_letters(raw) == expected
 
 
-def test_resource_name_removes_prefix_extension_and_generic_phrasing():
-    assert clean_title_for_name("9_斗破苍穹.txt") == "斗破苍穹"
+def test_resource_name_distinguishes_fallback_cleaning_and_concrete_name_validation():
+    # Original fallback preserves numbering/extensions; filename extraction is separate.
+    assert clean_title_for_name("9_斗破苍穹.txt") == "9_斗破苍穹.txt"
+    assert extract_resource_name("9_斗破苍穹.txt") == "9_斗破苍穹"
     assert extract_resource_name("求《斗破苍穹》百度网盘链接") == "斗破苍穹"
     assert extract_resource_name("求XXX百度网盘链接") == "XXX"
     assert has_concrete_name("这个游戏谁有") is False
@@ -86,4 +88,6 @@ def test_within_range_uses_iso_dates():
     old = (today - timedelta(days=365)).isoformat()
     assert within_range(recent, 7) is True
     assert within_range(old, 7) is False
-    assert within_range("unknown", 7) is False
+    # 原 v1.0.4 对缺失/异常日期继续采集，不能因解析不到日期而过滤整页。
+    assert within_range("unknown", 7) is True
+    assert within_range("", 7) is True
