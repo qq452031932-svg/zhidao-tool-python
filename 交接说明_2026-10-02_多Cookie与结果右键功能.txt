@@ -250,7 +250,8 @@ C#：CollectHelperClient 增加 PauseCollectingAsync 及事件字段；新增 Co
 文件位置：%LOCALAPPDATA%\BaiduBatchTransfer\logs\运行日志.txt（数据目录下的 logs）。每行“时间 [来源] 内容”，来源为 软件 / 采集 / 转存 / 分享。Cookie、网盘链接、提取码、本机路径不落盘；超过 5 MB 轮转为“运行日志-旧.txt”；写入失败不影响功能；界面“清空日志”不影响文件。
 实现位置（以 D:\hong-2\dakazhandian 为根）：新增 src\BaiduBatchTransfer.App\Services\RunLog.cs；WorkspaceLogEntry.cs 的 WorkspaceLogBuffer 增加追加回调；CollectViewModel、TransferWorkspaceViewModel、ShareWorkspaceViewModel 各加一个可选 IRunLog 参数；AppBootstrap.cs 注册；App.xaml.cs 记录启动、关闭、未处理异常。未改 XAML、助手 Python、版本号，未打包。
 验证见 docserification6-10-13-run-log.md：新增 13 项测试，相关 440 项通过；Debug 入口启动并关闭后日志内容符合预期。未在真实采集/转存下查看日志。
-待用户答复：是否提交两仓库改动；是否要在界面加“打开运行日志”的入口。之后仍按第十一节第 7 条的顺序做转存导入列表的上一页与单行删除。
+已提交（用户 2026-10-13 明确同意）：C# 主仓库 codex/collect-on-release 提交 08b1681f，工作区已干净；外层仓库 main 提交 da2e819。未推送到 hong-1，未打标签，未打包。
+待用户答复：是否要在界面加“打开运行日志”的入口。之后仍按第十一节第 7 条的顺序做转存导入列表的上一页与单行删除。
 修改前备份：D:\hong-2\.recovery\20261013-run-log-baseline。
 
 十、可复制到下个窗口的开场语
