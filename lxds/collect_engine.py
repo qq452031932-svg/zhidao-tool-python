@@ -132,8 +132,8 @@ class CollectionEngine:
         pending = deque(self._shuffle([word for word in words if word not in self.done_keywords]))
         self._filler_left = self._pick_every(FILLER_EVERY_RANGE)
         self._open_left = self._pick_every(OPEN_EVERY_RANGE)
-        # 原版恢复时，已处理的词（包括未命中）不再进入补量。
-        resolved = set(self.done_keywords)
+        # 续采时未命中的词仍要补量，否则暂停后继续会比一次采完少；已补过的词由 supplement_done 跳过。
+        resolved = set(self.found_keywords)
         retries, miss_window, empty_window = {}, [], []
         self.on_log(f"精准采集：每词最多 1 条，最多 {PRECISE_MAX_PAGES} 页 / {PRECISE_MAX_DETAIL} 个详情")
         while pending and len(self.items) < self.count:
@@ -261,12 +261,16 @@ class CollectionEngine:
                 before = len(self.items)
                 before_hits = before + self.stats["no_pwd"]
                 before_date = self.stats["filtered_date"]
-                candidates, _, kind = self._search(query, 0)
-                abnormal = abnormal + 1 if not candidates and kind == "unknown" else 0
-                if abnormal >= ABNORMAL_RISK_HITS:
-                    abnormal = idle = 0
-                    self.pool.on_silent_risk(None, page=True)
-                self._process_fuzzy_page(candidates, 30, keyword=self._fuzzy_term_owners.get(word, word))
+                try:
+                    candidates, _, kind = self._search(query, 0)
+                    abnormal = abnormal + 1 if not candidates and kind == "unknown" else 0
+                    if abnormal >= ABNORMAL_RISK_HITS:
+                        abnormal = idle = 0
+                        self.pool.on_silent_risk(None, page=True)
+                    self._process_fuzzy_page(candidates, 30, keyword=self._fuzzy_term_owners.get(word, word))
+                except CollectCancelled:
+                    self.done_queries.discard(marker)  # 这一页没处理完，续采时重做
+                    raise
                 self._after_search(candidates)
                 self._progress()
                 added = len(self.items) - before
@@ -320,7 +324,9 @@ class CollectionEngine:
                     if len(self.items) >= self.count or barren >= FUZZY_MAX_BARREN_PAGES:
                         break
                     query = variant.format(kw=word)
-                    pn, query_barren = 0, 0
+                    cursor_key = f"{stage}|{query}"
+                    # 续采时从上次没翻完的那一页接着翻，而不是整条查询跳过。
+                    pn, query_barren = self._query_cursor.get(cursor_key, 0), 0
                     while pn is not None:
                         self._check_stop()
                         if len(self.items) >= self.count or barren >= FUZZY_MAX_BARREN_PAGES:
@@ -333,12 +339,16 @@ class CollectionEngine:
                         before = len(self.items)
                         before_hits = before + self.stats["no_pwd"]
                         before_date = self.stats["filtered_date"]
-                        candidates, next_pn, kind = self._search(query, pn)
-                        abnormal = abnormal + 1 if not candidates and kind == "unknown" else 0
-                        if abnormal >= ABNORMAL_RISK_HITS:
-                            abnormal = idle = 0
-                            self.pool.on_silent_risk(None, page=True)
-                        self._process_fuzzy_page(candidates, days, keyword=self._fuzzy_term_owners.get(word, word))
+                        try:
+                            candidates, next_pn, kind = self._search(query, pn)
+                            abnormal = abnormal + 1 if not candidates and kind == "unknown" else 0
+                            if abnormal >= ABNORMAL_RISK_HITS:
+                                abnormal = idle = 0
+                                self.pool.on_silent_risk(None, page=True)
+                            self._process_fuzzy_page(candidates, days, keyword=self._fuzzy_term_owners.get(word, word))
+                        except CollectCancelled:
+                            self.done_queries.discard(marker)  # 这一页没处理完，续采时重做
+                            raise
                         self._after_search(candidates)
                         self._progress()
                         added = len(self.items) - before
@@ -353,6 +363,11 @@ class CollectionEngine:
                             barren += 1
                             query_barren += 1
                         self.stats.update(idle_pages=idle, barren_pages=barren)
+                        if next_pn is None or next_pn <= pn or query_barren >= FUZZY_BARREN_PAGES:
+                            self.done_queries.add(f"{stage}:{query}")
+                            self._query_cursor.pop(cursor_key, None)
+                        else:
+                            self._query_cursor[cursor_key] = next_pn
                         self._save()
                         if query_barren >= FUZZY_BARREN_PAGES:
                             self.on_log(f"当前查询连续 {query_barren} 页没有新增结果，结束本轮翻页")
@@ -384,6 +399,8 @@ class CollectionEngine:
             self._check_stop()
             if len(self.items) >= self.count or getattr(collector, "stop_supplement", False):
                 break
+            if term in self.supplement_done:
+                continue
             self.on_status(f"正在网页补量：{term}，已采 {len(self.items)} 条")
             before, stream = len(self.items), None
             try:
@@ -413,6 +430,8 @@ class CollectionEngine:
                 close = getattr(stream, "close", None)
                 if close:
                     close()
+            self.supplement_done.add(term)
+            self._save()
             barren = 0 if len(self.items) > before else barren + 1
             if barren >= SUPPLEMENT_MAX_BARREN:
                 self.on_log(f"网页补量连续 {barren} 个关键词无新增，停止补量")
@@ -426,6 +445,12 @@ class CollectionEngine:
         self.count = len(words) if self.mode == "precise" else max(1, self.count)
         self._source_words = words
         self._restore()
+        if self.resume:
+            self.on_restored(list(self.items))
+            if self.items or self.done_keywords or self.done_queries:
+                self.on_log(f"从断点继续：已恢复 {len(self.items)} 条结果；账号请求节奏重新计时，个别页面可能重新请求")
+            else:
+                self.on_log("没有可用的断点进度，从头开始采集")
         self.on_log(f"开始{'精准' if self.mode == 'precise' else '模糊'}采集：共 {len(words)} 个关键词，当前已采 {len(self.items)} 条")
         completed = False
         try:

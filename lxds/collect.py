@@ -28,7 +28,7 @@ class CollectWorker(CollectionEngine):
                  dedupe_names=True, mode="precise", resume=False,
                  checkpoint_path=None, on_item=None, on_progress=None,
                  on_status=None, on_log=None, pause_ask=None,
-                 fetcher=None, pool=None, supplement_factory=None):
+                 fetcher=None, pool=None, supplement_factory=None, on_restored=None):
         if mode not in ("precise", "fuzzy"):
             raise ValueError("mode 必须是 precise 或 fuzzy")
         self.keyword = keyword
@@ -50,6 +50,7 @@ class CollectWorker(CollectionEngine):
         self.on_status = on_status or (lambda status: None)
         self.on_log = on_log or (lambda message: None)
         self.pause_ask = pause_ask
+        self.on_restored = on_restored or (lambda items: None)
         self.stop_event = Event()
         self._resume_event = Event()
         self._resume_choice = False
@@ -71,6 +72,9 @@ class CollectWorker(CollectionEngine):
         self.done_keywords: set[str] = set()
         self.found_keywords: set[str] = set()
         self.done_queries: set[str] = set()
+        # 续采用：未翻完的查询下一页位置，以及已做过补量的词。
+        self._query_cursor: dict[str, int] = {}
+        self.supplement_done: set[str] = set()
         self.stats = dict.fromkeys(_STATS, 0)
         self._used_common: set[str] = set()
         self._source_words: list[str] = []
@@ -131,6 +135,10 @@ class CollectWorker(CollectionEngine):
         payload = load(self.checkpoint_path)
         if payload.get("mode") != self.mode:
             return
+        saved_words = payload.get("keywords")
+        if isinstance(saved_words, list) and saved_words != self._source_words:
+            self.on_log("关键词与断点记录不一致，不沿用旧进度，从头开始采集")
+            return
         self.items = [{"资源名称": row.get("资源名称", row.get("name", "")),
                        "资源链接": row.get("资源链接", row.get("link", "")),
                        "提取码": row.get("提取码", row.get("pwd", "")),
@@ -174,6 +182,10 @@ class CollectWorker(CollectionEngine):
         self.done_keywords = set(payload.get("done_keywords", []))
         self.found_keywords = set(payload.get("found_keywords", []))
         self.done_queries = set(payload.get("done_queries", []))
+        cursor = payload.get("query_cursor", {})
+        self._query_cursor = ({key: value for key, value in cursor.items() if isinstance(value, int)}
+                              if isinstance(cursor, dict) else {})
+        self.supplement_done = set(payload.get("supplement_done", []))
         self.stats.update({key: int(value) for key, value in payload.get("stats", {}).items() if key in self.stats})
         self.stats["found"] = len(self.items)
 
@@ -187,13 +199,14 @@ class CollectWorker(CollectionEngine):
             "item_coverage_pages": self._item_coverage_pages,
             "seen_keys": sorted(self.seen_keys), "seen_links": sorted(self.seen_keys),
             "seen_names": sorted(self.seen_names), "rules_version": "1.0.4",
-            "found": len(self.items), "stats": self.stats,
+            "found": len(self.items), "stats": self.stats, "keywords": self._source_words,
+            "supplement_done": sorted(self.supplement_done),
         }
         if self.mode == "precise":
             payload.update(done_keywords=sorted(self.done_keywords),
-                           found_keywords=sorted(self.found_keywords), keywords=self._source_words)
+                           found_keywords=sorted(self.found_keywords))
         else:
-            payload.update(done_queries=sorted(self.done_queries))
+            payload.update(done_queries=sorted(self.done_queries), query_cursor=self._query_cursor)
         save(self.checkpoint_path, payload)
 
     def _add(self, name: str, link: str, pwd: str, source_url: str, *, item_date: str = "",
