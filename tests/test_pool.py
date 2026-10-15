@@ -62,13 +62,21 @@ def test_three_hits_disable_one_account_but_other_continues(monkeypatch):
     assert paused == []
 
 
-def test_all_accounts_probe_abnormal_prompts_once(monkeypatch):
+def test_all_accounts_probe_abnormal_cools_silently_then_prompts_once(monkeypatch):
+    # 2026-10-15 多 Cookie 新规则：多个账号共用直连出口都被限制时，先整体静默冷却几轮再询问，不要求开代理。
     pool, paused = _pool()
     monkeypatch.setattr(pool, "probe_slot", lambda slot: False)
     for slot in pool.slots:
         for _ in range(3):
             pool.on_risk(slot, "安全验证")
+    assert paused == []
+    assert pool.silent_rounds == 1
+    pool.silent_rounds = 3
+    for _ in range(3):
+        pool.on_risk(pool.slots[0], "安全验证")
     assert len(paused) == 1
+    assert paused[0]["kind"] == "risk"
+    assert {slot.exit_kind for slot in pool.slots} == {"direct"}
 
 
 def test_single_account_three_silent_cooldowns_before_prompt(monkeypatch):
