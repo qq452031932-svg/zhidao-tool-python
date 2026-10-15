@@ -1,6 +1,6 @@
 知道综合工具  多 Cookie 与采集结果右键功能交接
 更新日期：2026-10-02（Asia/Shanghai）
-状态（2026-10-15 更新）：第十六至十九节已实机通过并提交（多 Cookie 为 C# e817fd6e）。v1.1.13 OTA 包已生成、未上传（看第二十节）。
+状态（2026-10-15 更新）：第十六至十九节已实机通过并提交（多 Cookie 为 C# e817fd6e）。v1.1.13 OTA 包已生成；用户上传后台未通过，原因待用户提供页面顶部红色提示（看第二十节第 8 条）。
 
 一、接手结论与用户授权
 
@@ -388,8 +388,13 @@ C#：CollectHelperClient 增加 PauseCollectingAsync 及事件字段；新增 Co
 4. 打包：发布 worktree D:\hong-2\dakazhandian\.worktrees\release-1.1.13-20261015（分支 release/v1.1.13-20261015，来源 6628a50e，基于开发分支 e8f6af90）；锁文件与 v1.1.12 除版本号外一致；脚本与证据在 dakazhandian\.artifacts\release-v113（run_build、inspect_package、inspect_compiled_home、deliver_package、verify_delivery）。
 5. 交付：D:\hong-2\发布包\v1.1.13\知道综合工具-v1.1.13-OTA更新包.zip，291166248 字节，SHA256 ed28340c54f96cde40c7250bd3c4e071546d2fe21ec275ba1269bce664129e84；独立校验 verified=true，包内助手、运行时、首页、授权与更新参数全部核对。详见 docs\verification\2026-10-15-v1.1.13-release.md。
 6. 运行日志位置（让用户发这个文件）：%LOCALAPPDATA%\BaiduBatchTransfer\logs\运行日志.txt，超过 5 MB 时同目录另有「运行日志-旧.txt」；v1.1.13 起才有。
-7. 未做：未上传后台；未做真实 1.1.12→1.1.13 升级测试；失败日志与超链接表格导入未实机操作。下一版再发包时把发布脚本里的版本号和 worktree 名一起改，先只读核对线上版本。
+7. 未做：未做真实 1.1.12→1.1.13 升级测试；失败日志与超链接表格导入未实机操作。下一版再发包时把发布脚本里的版本号和 worktree 名一起改，先只读核对线上版本。
+8. 当前停在哪里（2026-10-15，用户要求“先写入交接文件，我等会再来”）：用户把 v1.1.13 ZIP 传到 OTA 后台，「校验清单」七项全 ✕、候选版本空、文件数 0、标签「旧候选已保留（不可发布）」。
+   - 含义：services\ota_admin\internal\webui\static\app.js 里上传失败（非 202）或网络中断时调用 restoreAuthoritativeCandidate，恢复显示服务器原有候选（这里是空的）。真正原因显示在页面顶部红色提示（errorMessages：upload_too_large / invalid_zip_envelope / signature_mismatch / version_floor / release_validation_failed / insufficient_storage / upload_unavailable 等，无错误码时是「上传或校验失败。」，网络断是「网络中断……」），用户截图没截到。
+   - 已排除包本身：本机用后台同一套代码（upload.NewReceiver 默认限额 + release.NewValidator(ProductionTrust) + 线上最高 1.1.12）校验交付 ZIP，verified=true、SuperPan.BaiduBatchTransfer、win-x64-stable、1.1.13、8 个文件。临时程序 cmd\zz-local-validate 已删除，仓库无残留。本机有 Go 1.27.1 可复现。
+   - 可能原因：选错文件（应为约 277.7 MB 的「知道综合工具-v1.1.13-OTA更新包.zip」）、上传中断、服务器空间/上传大小限制（含反向代理）或上传服务不可用。
+   - 用户回来后：先要页面顶部红色提示和操作编号（建议 Ctrl+F5 后重新选 ZIP 上传，截整页），按错误码处理。没有证据是包的问题前，不要重新打包、改版本号或覆盖 发布包\v1.1.13。
 
 十、可复制到下个窗口的开场语
 
-请先阅读 D:\hong-2\交接说明_2026-10-02_多Cookie与结果右键功能.txt（重点看第十九节）和 D:\hong-2\HANDOFF.md。第十六至十九节已实机通过并提交（多 Cookie 为 C# e817fd6e）。我要调整的细节是：【在这里写】。有问题请先读运行日志再修；改完先让我实机测试，通过后再问我要不要提交。请保留现有未提交成果和采集规则；样本文件含真实凭据，不要把内容写进文档、测试或日志；不要覆盖现有 v1.1.12 包，也不要擅自打包、改版本号或上传发布。
+请先阅读 D:\hong-2\交接说明_2026-10-02_多Cookie与结果右键功能.txt（重点看第二十节第 8 条）和 D:\hong-2\HANDOFF.md。v1.1.13 OTA 包已生成，我上传到后台没通过。页面顶部的红色提示是：【在这里写或贴截图】。有问题请先读运行日志再修；改完先让我实机测试，通过后再问我要不要提交。请保留现有未提交成果和采集规则；样本文件含真实凭据，不要把内容写进文档、测试或日志；不要覆盖现有 v1.1.12 包，也不要擅自打包、改版本号或上传发布。
