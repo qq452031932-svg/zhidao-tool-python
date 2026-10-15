@@ -1,6 +1,6 @@
 知道综合工具  多 Cookie 与采集结果右键功能交接
 更新日期：2026-10-02（Asia/Shanghai）
-状态（2026-10-15 晚更新）：第十六至十九节已实机通过并提交（多 Cookie 为 C# e817fd6e）。用户另有细节要调整，等用户说明。
+状态（2026-10-15 更新）：第十六至十九节已实机通过并提交（多 Cookie 为 C# e817fd6e）。v1.1.13 OTA 包已生成、未上传（看第二十节）。
 
 一、接手结论与用户授权
 
@@ -379,6 +379,16 @@ C#：CollectHelperClient 增加 PauseCollectingAsync 及事件字段；新增 Co
 已知限制：没有真实联网采集验证；只按 BDUSS 去重；不做并发、不按账号统计贡献条数；精准模式的原版补量仍固定用第一个直连账号。
 当前停在哪里（10-15 晚）：用户暂停，第二轮测试未做；两仓库本节改动未提交。用户测试通过后先问是否提交（C# 基于 438eb3c3；外层含 HANDOFF.md、本文件、验证记录、lxds\pool.py/behavior.py/collect_engine.py、tests\test_pool.py），提交后补记实机通过与提交号。不要打包、改版本号、上传，不要覆盖 v1.1.12 包。
 第二轮实机反馈（10-15 晚）：三项通过——勾选删除删的是第 3、4 行；2 个账号采集时运行日志有「2 个账号轮换采集，全部直连；每个账号各自保持请求间隔，账号之间至少间隔 3 秒」和两个账号的「网络出口：直连」；关软件再开账号和勾选都在。用户同意提交：C# e817fd6e，外层同时提交。用户还有一些细节要调整，下一窗口先问清再改。
+
+二十、2026-10-15：转存失败日志、WPS 超链接表格导入修复，v1.1.13 OTA 包（已生成，未上传）
+
+1. 转存失败日志：另一位用户截图里第 23 条失败后，后面每行进度都标红「错误」（进度行失败数是累计的）。现在进度行不再标红；失败数增加时单独写一行红色「第 N 条「名称」转存失败：原因（代码）」或「分享失败」，最多 5 行，其余指向「处理结果」。打开历史批次不重放旧失败。入口：JobResultsViewModel.PublishProgressAsync / ReportNewFailuresAsync、结果查询 FailedOnly、WorkspaceLogBuffer.Classify。
+2. Excel 导入报「Excel 文件包含异常内容」：用户表格（WPS 保存，2805 行）里 121 个单元格超链接指向 pan.baidu.com，导入前安全检查把超链接当外部内容整表拒绝。已放行超链接（OpenXmlImportReader.HasExternalRelationships），宏、外部工作簿与其他外部关系仍拒绝。用修复后的代码读用户表格副本：2805 行全部读出。用户原文件未改，内容未入库。
+3. 版本：线上稳定通道只读核对为 1.1.12，本版 1.1.13；首页 9 条日志与 docs\release-notes\1.1.13.md 一致。
+4. 打包：发布 worktree D:\hong-2\dakazhandian\.worktrees\release-1.1.13-20261015（分支 release/v1.1.13-20261015，来源 6628a50e，基于开发分支 e8f6af90）；锁文件与 v1.1.12 除版本号外一致；脚本与证据在 dakazhandian\.artifacts\release-v113（run_build、inspect_package、inspect_compiled_home、deliver_package、verify_delivery）。
+5. 交付：D:\hong-2\发布包\v1.1.13\知道综合工具-v1.1.13-OTA更新包.zip，291166248 字节，SHA256 ed28340c54f96cde40c7250bd3c4e071546d2fe21ec275ba1269bce664129e84；独立校验 verified=true，包内助手、运行时、首页、授权与更新参数全部核对。详见 docs\verification\2026-10-15-v1.1.13-release.md。
+6. 运行日志位置（让用户发这个文件）：%LOCALAPPDATA%\BaiduBatchTransfer\logs\运行日志.txt，超过 5 MB 时同目录另有「运行日志-旧.txt」；v1.1.13 起才有。
+7. 未做：未上传后台；未做真实 1.1.12→1.1.13 升级测试；失败日志与超链接表格导入未实机操作。下一版再发包时把发布脚本里的版本号和 worktree 名一起改，先只读核对线上版本。
 
 十、可复制到下个窗口的开场语
 
