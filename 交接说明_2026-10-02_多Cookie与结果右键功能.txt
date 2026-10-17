@@ -130,7 +130,7 @@ B. BaiduAccountShareAnalyticsClient 每次请求 30 秒超时，超时重试一�
 二十七、2026-10-17：用户实机确认与交接精简
 1. 用户确认：升级后安装目录下 logs\运行日志.txt 出现；账号登录没问题；上次卡住的批次已正常运行。暂无新 bug，用户有问题再来。
 2. 交接文件精简：HANDOFF.md 只留当前状态、常驻约定与 10-15 起的记录；10-15 以前的 HANDOFF 内容和本文件第一～十九节移到 docs\history\。
-3. 备份现状：外层仓库无远端；C# 仓库 origin 为同盘 D:\hong-1\dakazhandian，领先 11 个提交未推。是否配私有远端待用户定。
+3. 已建 GitHub 私有备份：外层 zhidao-tool-python（main）、C# zhidao-tool-csharp（5 个分支），远端名 github，提交号已用 ls-remote 核对一致。推送由用户用 ! 前缀自己执行（自动权限拦截 git push）。C# origin 仍是 D:\hong-1\dakazhandian。
 
 十、可复制到下个窗口的开场语
 

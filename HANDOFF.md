@@ -8,7 +8,7 @@
 - **用户 10-17 实机确认**：升级后安装目录下 `logs\运行日志.txt` 已出现；账号登录正常；之前卡住的那批已正常运行。目前没有已知 bug，用户有问题会再来找。
 - **待用户决定（不要自行开工）**：①监控反馈列表尾部 2024 年老分享每次刷新约十来条进出，是否改成「连续几次没读到才隐藏」；②翻页加间隔（交接说明第二十四节 C）暂缓。
 - **代码位置**：C# 主仓库 `D:\hong-2\dakazhandian`，分支 `codex/collect-on-release`，HEAD `652c4cfc`，工作区干净；发布 worktree 在 `dakazhandian\.worktrees\release-1.1.1x-*`。外层 Python 仓库 `D:\hong-2`，`main`。
-- **没有异地备份**：外层仓库无远端；C# 仓库 origin 是同一块盘上的 `D:\hong-1\dakazhandian`，且领先 11 个提交未推。用户尚未决定是否配私有远端（推送前先确认证书、授权配置、凭据不在范围内）。
+- **GitHub 私有备份（2026-10-17 建立）**：外层 → `https://github.com/qq452031932-svg/zhidao-tool-python.git`，C# → `https://github.com/qq452031932-svg/zhidao-tool-csharp.git`，远端名都叫 `github`（C# 的 `origin` 仍指向 `D:\hong-1\dakazhandian`，不动）。C# 5 个分支的上游已改为 `github/...`。**推送由用户自己执行**（Claude Code 自动权限会拦截 git push）：每次提交后提醒用户运行 `! git -C D:/hong-2 push github main` 和 `! git -C D:/hong-2/dakazhandian push github --all`，推完用 `git ls-remote github` 核对提交号。
 - **详细记录**：[交接说明（第二十节起）](交接说明_2026-10-02_多Cookie与结果右键功能.txt)；发布基线 [v1.1.12 交接说明](交接说明_2026-09-30_v1.1.12.txt)。
 - **历史**：2026-10-15 以前的记录移到 [docs/history/HANDOFF-历史-至2026-10-15.md](docs/history/HANDOFF-历史-至2026-10-15.md) 与 [docs/history/交接说明-多Cookie-第一至十九节.txt](docs/history/交接说明-多Cookie-第一至十九节.txt)，**只作查阅，其中的命令和待办已过时，切勿照做**。
 
