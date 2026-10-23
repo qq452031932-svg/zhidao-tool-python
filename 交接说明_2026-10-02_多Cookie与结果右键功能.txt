@@ -132,6 +132,16 @@ B. BaiduAccountShareAnalyticsClient 每次请求 30 秒超时，超时重试一�
 2. 交接文件精简：HANDOFF.md 只留当前状态、常驻约定与 10-15 起的记录；10-15 以前的 HANDOFF 内容和本文件第一～十九节移到 docs\history\。
 3. 已建 GitHub 私有备份：外层 zhidao-tool-python（main）、C# zhidao-tool-csharp（5 个分支），远端名 github，提交号已用 ls-remote 核对一致。推送由用户用 ! 前缀自己执行（自动权限拦截 git push）。C# origin 仍是 D:\hong-1\dakazhandian。
 
+二十八、2026-10-23：建大批次 / 监控反馈同步时闪退（已修，v1.1.15 已打包，未上传、待实机测试）
+1. 材料：桌面「新建文件夹」里 运行日志(8).txt、知道综合工具-事件日志.txt（用户从事件查看器导出）、知道采集_20261023_100303_*.xlsx（3,206 行，本次未用到）。
+2. 现象：13:36、13:41、13:43、14:03、14:14 建批次（3,046 / 2,553 条）后不到 1 秒「软件关闭，退出码 0」；12:05、13:39、13:40、14:31 在监控反馈「首次同步分享数据」进行中闪退。613、942 条批次正常跑完。重开后「上次关闭软件时有 1 个转存批次没有暂停，已按停止处理」整批取消。
+3. 根因：事件日志 18 条全部是 SqliteException 5 database is locked，栈在 TransferCoordinatorHostedService.ExecuteAsync → TransferCoordinator.RunCycleAsync → RecoverExpiredLeasesAsync / TryActivateNextBatchAsync / ShareScheduling TryReserveNextAsync 的 BEGIN IMMEDIATE。连接 busy_timeout 5000 毫秒（SqliteConnectionFactory 默认）。建大批次、SqliteAccountShareAnalyticsRepository.CommitCompleteSyncAsync（单事务写全部分享、指标、每日值）占写锁超过 5 秒；托管服务没接非取消异常 → .NET 8 BackgroundServiceExceptionBehavior.StopHost → App 的 ApplicationStoppingShutdownCoordinator 正常关闭，退出码 0，运行日志无原因。
+4. 修改：TransferCoordinatorHostedService 新增可选 IRunLog、busyRetryDelay（默认 3 秒）。SQLite 5/6（含内层异常）→ 第一次写「[转存] 数据库正被其他操作占用……稍后自动重试」，等 3 秒重试；恢复后写「数据库恢复空闲，转存调度已继续（期间等了 N 次）」。其他异常保持原设计停下（测试 UnexpectedCoordinatorFailureFaultsOnceInsteadOfBeingRetriedForever），但先写「【错误】转存调度出错，软件将关闭……」加完整异常。DI 自动注入 IRunLog。用户同意后 AppBootstrap 把连接等锁从 5 秒改为 30 秒（SqliteConnectionFactory 默认值仍 5000）。
+5. 测试：新增 ABusyDatabaseIsRetriedInsteadOfStoppingTheApplication，扩展 Unexpected… 断言日志；App 测试 TransferCoordinatorHostedService + AppBootstrap 69 项通过（--artifacts-path .artifacts\test-20261023-dblocked）。Debug 已重建，0 警告 0 错误。
+6. 未做 / 待用户定：监控同步提交是否分段写、建批次长事务是否拆；顺带：放弃收尾 10-23 12:16 在该用户机器上自动触发成功（1 条按结果未确认记失败，后面 942 条接着跑完），可视为实机通过。
+7. 提交与打包：C# 818ec689（修复 + 等锁 30 秒）、648499d4（首页与 docs/release-notes 更新日志 2 条）；发布分支 release/v1.1.15-20261023 最终 5ee55563（锁文件版本 5 行、受审清单 1 个文件哈希）。交付 D:\hong-2\发布包\v1.1.15\知道综合工具-v1.1.15-OTA更新包.zip，291242058 字节，SHA256 62ed928bcb1c6679fd863d6b69efc944ae1ac10dbbfd00339918f876a9d96ccf，独立校验 verified=true。全量回归无新增失败，详见 docs\verification\2026-10-23-v1.1.15-release.md。均已推送 GitHub。
+8. 当前停在哪里：等用户上传发布，先用一台 1.1.14 测升级，再让那位用户更新后建大批次、同时监控反馈同步，发回安装文件夹 logs\运行日志.txt。看有没有「数据库正被其他操作占用」且软件没关，以及监控「首次同步」能否完成。
+
 十、可复制到下个窗口的开场语
 
 请先阅读 D:\hong-2\HANDOFF.md（「当前状态」「常驻约定」）和 D:\hong-2\交接说明_2026-10-02_多Cookie与结果右键功能.txt（第二十节起）。线上是 v1.1.14，暂无已知 bug。我的测试结果或新要求是：【在这里写】。有问题请先读运行日志再修；改完先让我实机测试，通过后再问我要不要提交。不要擅自打包、改版本号或上传发布；真实凭据不要写进文档、测试或日志。

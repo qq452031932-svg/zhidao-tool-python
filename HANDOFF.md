@@ -1,14 +1,15 @@
 ﻿# 知道综合工具开发交接（hong-2）
 
-更新：2026-10-17（Asia/Shanghai）
+更新：2026-10-23（Asia/Shanghai）
 
 ## 当前状态（新窗口先看这里）
 
 - **线上版本**：v1.1.14（稳定通道 win-x64-stable，用户已发布，线上包与本地构建哈希一致）。
+- **10-23 v1.1.15 已提交并打包，未上传**：用户反馈建大批次后闪退，根因是数据库被锁时调度器异常让软件退出，已修并打包到 `发布包\v1.1.15`，由用户上传后让那位用户更新实测，见下方 10-23 记录、交接说明第二十八节和[验证记录](docs/verification/2026-10-23-v1.1.15-release.md)。
 - **用户 10-17 实机确认**：升级后安装目录下 `logs\运行日志.txt` 已出现；账号登录正常；之前卡住的那批已正常运行。目前没有已知 bug，用户有问题会再来找。
 - **待用户决定（不要自行开工）**：①监控反馈列表尾部 2024 年老分享每次刷新约十来条进出，是否改成「连续几次没读到才隐藏」；②翻页加间隔（交接说明第二十四节 C）暂缓。
-- **代码位置**：C# 主仓库 `D:\hong-2\dakazhandian`，分支 `codex/collect-on-release`，HEAD `652c4cfc`，工作区干净；发布 worktree 在 `dakazhandian\.worktrees\release-1.1.1x-*`。外层 Python 仓库 `D:\hong-2`，`main`。
-- **GitHub 私有备份（2026-10-17 建立）**：外层 → `https://github.com/qq452031932-svg/zhidao-tool-python.git`，C# → `https://github.com/qq452031932-svg/zhidao-tool-csharp.git`，远端名都叫 `github`（C# 的 `origin` 仍指向 `D:\hong-1\dakazhandian`，不动）。C# 5 个分支的上游已改为 `github/...`。**推送由用户自己执行**（Claude Code 自动权限会拦截 git push）：每次提交后提醒用户运行 `! git -C D:/hong-2 push github main` 和 `! git -C D:/hong-2/dakazhandian push github --all`，推完用 `git ls-remote github` 核对提交号。
+- **代码位置**：C# 主仓库 `D:\hong-2\dakazhandian`，分支 `codex/collect-on-release`，HEAD `648499d4`，工作区干净；发布 worktree 在 `dakazhandian\.worktrees\release-1.1.1x-*`。外层 Python 仓库 `D:\hong-2`，`main`。
+- **GitHub 私有备份（2026-10-17 建立）**：外层 → `https://github.com/qq452031932-svg/zhidao-tool-python.git`，C# → `https://github.com/qq452031932-svg/zhidao-tool-csharp.git`，远端名都叫 `github`（C# 的 `origin` 仍指向 `D:\hong-1\dakazhandian`，不动）。C# 5 个分支的上游已改为 `github/...`。每次提交后推送：外层 `git push github main`，C# `git push github --all`，推完用 `git ls-remote github` 核对提交号。10-23 起 Claude Code 直接推送没被拦（以前会被自动权限拦截；再被拦时请用户用 `!` 前缀自己运行）。
 - **详细记录**：[交接说明（第二十节起）](交接说明_2026-10-02_多Cookie与结果右键功能.txt)；发布基线 [v1.1.12 交接说明](交接说明_2026-09-30_v1.1.12.txt)。
 - **历史**：2026-10-15 以前的记录移到 [docs/history/HANDOFF-历史-至2026-10-15.md](docs/history/HANDOFF-历史-至2026-10-15.md) 与 [docs/history/交接说明-多Cookie-第一至十九节.txt](docs/history/交接说明-多Cookie-第一至十九节.txt)，**只作查阅，其中的命令和待办已过时，切勿照做**。
 
@@ -24,6 +25,21 @@
 - **发包参考**：`dakazhandian\.artifacts\release-v114` 的脚本与 [v1.1.14 验证记录](docs/verification/2026-10-17-v1.1.14-release.md)；交付包要独立校验 verified=true。
 
 ## 近期记录（新的在上）
+
+## 2026-10-23：v1.1.15 已提交并打包（未上传、待实机测试）
+
+- **提交**：C# `818ec689` fix(transfer)、`648499d4` 更新日志 2 条；发布分支 `release/v1.1.15-20261023` 最终来源 `5ee55563`。均已推送 GitHub 并核对。
+- **交付**：`发布包\v1.1.15\知道综合工具-v1.1.15-OTA更新包.zip`，291,242,058 字节，SHA256 `62ed928bcb1c6679fd863d6b69efc944ae1ac10dbbfd00339918f876a9d96ccf`，独立校验通过。
+- **回归**：四个项目全量无新增失败（App 多出的 1 项 WebView 下载超时测试单独重跑 4 次全过，属时序抖动），见[验证记录](docs/verification/2026-10-23-v1.1.15-release.md)。
+- **下一步**：用户上传后先用一台 1.1.14 点更新，再让那位用户更新、建大批次、同时监控反馈同步，发回运行日志。
+
+## 2026-10-23：建大批次 / 监控反馈同步时闪退——数据库被锁，调度器异常让软件退出（已修，随 v1.1.15 发出）
+
+- **现象**：用户运行日志(8)：导入 3,206 / 2,709 行建批次（3,046 / 2,553 条）后不到 1 秒软件关闭，「退出码 0」，日志无原因，共 9 次；613、942 条批次正常。每次重开批次被「未暂停按停止处理」整批取消；监控反馈账号「首次同步」从未完成。
+- **根因（事件查看器 18 条 .NET Runtime 记录，全部同一原因）**：`SQLite Error 5: 'database is locked'`，抛在 `TransferCoordinator.RunCycleAsync`（多为 RecoverExpiredLeasesAsync 的 BEGIN IMMEDIATE）。建几千条批次、监控反馈同步提交（一个事务写全部分享×指标×每日）占写锁超过 busy_timeout 5 秒；`TransferCoordinatorHostedService` 只接取消异常，.NET 8 默认 StopHost → ApplicationStopping → 软件正常关闭。闪退又打断同步提交，形成循环。
+- **已改**：`TransferCoordinatorHostedService` 遇 SQLite 5/6 写一次运行日志、3 秒后重试，恢复后记一行；其他异常仍按原设计停下，但先把完整异常写进运行日志。新增/扩展测试 2 项，相关 69 项通过。用户同意后 `AppBootstrap` 等锁 5 秒 → 30 秒（工厂默认值不变）。备份 `.recovery\20261023-scheduler-db-locked`。
+- **没改（待用户定）**：监控同步提交和建批次的长事务没拆。
+- **事件日志取法**（以后闪退无原因时先要这个）：`Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=[datetime]'<日期>'} | ? { $_.Message -match 'BackgroundService|BaiduBatchTransfer' } | fl TimeCreated,Message`。
 
 ## 2026-10-17：v1.1.14 已发布上线
 
